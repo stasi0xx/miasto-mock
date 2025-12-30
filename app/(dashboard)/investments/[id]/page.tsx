@@ -231,7 +231,8 @@ export default async function InvestmentPage({ params }: { params: Promise<{ id:
 
             {/* --- FOOTER Z AKCJAMI (Fixed bottom) --- */}
 
-            {showCommentBar && (<div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-50">
+            {showCommentBar && (<div className="fixed bottom-0 right-0 p-4 bg-white border-t border-slate-200 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-40
+                    left-0 md:left-64 transition-all duration-300">
                 <div className="max-w-4xl mx-auto flex justify-end gap-3">
                     {/* Tutaj w przyszłości dodasz "Dodaj Komentarz" dla wszystkich */}
                     <Link
