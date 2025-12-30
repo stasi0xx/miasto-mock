@@ -18,6 +18,9 @@ function SubmitButton({ label, color = 'bg-slate-900' }: { label: string, color?
     );
 }
 
+// Definiujemy bezpieczny stan początkowy dla TypeScripta
+const initialState = { message: null as string | null };
+
 export function DepartmentControls({
                                        investmentId,
                                        departments,
@@ -29,8 +32,9 @@ export function DepartmentControls({
 }) {
     const [activeTab, setActiveTab] = useState<'COST' | 'TRANSFER' | null>(null);
 
-    const [costState, costDispatch] = useActionState(updateCost, { message: null });
-    const [transferState, transferDispatch] = useActionState(transferInvestment, { message: null });
+    // POPRAWKA: Używamy 'initialState' z jawnym typem (string | null)
+    const [costState, costDispatch] = useActionState(updateCost, initialState);
+    const [transferState, transferDispatch] = useActionState(transferInvestment, initialState);
 
     if (!activeTab) {
         return (
@@ -104,7 +108,6 @@ export function DepartmentControls({
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Wybierz Wydział Docelowy</label>
 
-                        {/* POPRAWKA REACT: defaultValue w select, brak selected w option */}
                         <select
                             name="targetDepartmentId"
                             required
