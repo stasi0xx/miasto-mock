@@ -4,6 +4,14 @@ import { SearchFilters } from '@/components/investments/search-filters';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+// Helper: Formatowanie waluty z użyciem "tabular nums" dla równego wyrównania
+const formatMoney = (amount: number) =>
+    new Intl.NumberFormat('pl-PL', {
+        style: 'currency',
+        currency: 'PLN',
+        maximumFractionDigits: 0
+    }).format(amount);
+
 export default async function AllInvestmentsPage({
                                                      searchParams,
                                                  }: {
@@ -14,106 +22,158 @@ export default async function AllInvestmentsPage({
     const statusFilter = params.status || '';
 
     const supabase = await createClient();
-
-    // Security Check
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) redirect('/login');
 
-    // Budowanie zapytania
-    // RLS zadba o to, żeby Rada nie widziała cudzych, nawet jak usunie filtry.
     let query = supabase
         .from('investments')
         .select('*, districts(name), departments(name)')
         .order('created_at', { ascending: false });
 
-    // Aplikowanie filtrów UI
-    if (queryTerm) {
-        query = query.ilike('title', `%${queryTerm}%`);
-    }
+    if (queryTerm) query = query.ilike('title', `%${queryTerm}%`);
+    if (statusFilter && statusFilter !== 'ALL') query = query.eq('status', statusFilter);
 
-    if (statusFilter && statusFilter !== 'ALL') {
-        query = query.eq('status', statusFilter);
-    }
-
-    const { data: investments, error } = await query;
+    const { data: investments } = await query;
 
     return (
-        <div className="max-w-[1600px] mx-auto p-8 space-y-8">
+        <div className="w-full space-y-8 max-w-[1600px] mx-auto">
 
-            {/* HEADER */}
-            <div>
-                <h1 className="text-3xl font-bold text-slate-900">Rejestr Inwestycji</h1>
-                <p className="text-slate-500 mt-2">Przeglądaj wszystkie inwestycje dostępne dla Twojej jednostki.</p>
+            {/* HEADER: Nowoczesny i czysty */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Rejestr Inwestycji</h1>
+                    <p className="text-slate-500 mt-2 text-sm max-w-2xl">
+                        Zarządzaj i monitoruj status wszystkich zadań inwestycyjnych w Twojej jednostce.
+                    </p>
+                </div>
+                {/* Tu można dodać przycisk eksportu lub statystyki w przyszłości */}
             </div>
 
-            {/* FILTRY (CLIENT COMPONENT) */}
+            {/* FILTRY */}
             <SearchFilters />
 
-            {/* WYNIKI */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-slate-50 border-b border-slate-200">
-                        <tr>
-                            <th className="px-6 py-4 font-semibold text-slate-700">Nazwa Inwestycji</th>
-                            <th className="px-6 py-4 font-semibold text-slate-700">Dzielnica</th>
-                            <th className="px-6 py-4 font-semibold text-slate-700">Wydział</th>
-                            <th className="px-6 py-4 font-semibold text-slate-700 text-right">Koszt</th>
-                            <th className="px-6 py-4 font-semibold text-slate-700">Status</th>
-                            <th className="px-6 py-4 font-semibold text-slate-700 text-right"></th>
-                        </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                        {investments?.length === 0 ? (
-                            <tr>
-                                <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
-                                    Brak wyników dla podanych filtrów.
+            {/* --- MODERN DESKTOP TABLE --- */}
+            <div className="hidden md:block rounded-xl border border-slate-200 bg-white shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] overflow-hidden">
+                <table className="w-full text-left border-collapse">
+                    <thead>
+                    <tr className="border-b border-slate-100 bg-white">
+                        <th className="px-6 py-5 text-xs font-semibold uppercase tracking-wider text-slate-400 w-[40%]">Inwestycja</th>
+                        <th className="px-6 py-5 text-xs font-semibold uppercase tracking-wider text-slate-400">Lokalizacja</th>
+                        <th className="px-6 py-5 text-xs font-semibold uppercase tracking-wider text-slate-400">Jednostka</th>
+                        <th className="px-6 py-5 text-xs font-semibold uppercase tracking-wider text-slate-400 text-right">Budżet</th>
+                        <th className="px-6 py-5 text-xs font-semibold uppercase tracking-wider text-slate-400 text-center">Status</th>
+                        <th className="px-6 py-5 w-[60px]"></th>
+                    </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                    {investments?.length === 0 ? (
+                        <tr><td colSpan={6} className="px-6 py-16 text-center text-slate-400 text-sm">Brak wyników dla podanych filtrów.</td></tr>
+                    ) : (
+                        investments?.map((inv) => (
+                            <tr key={inv.id} className="group hover:bg-slate-50/80 transition-colors duration-200">
+                                <td className="px-6 py-4 align-top">
+                                    <div className="flex flex-col gap-1">
+                      <span className="font-semibold text-slate-900 text-base group-hover:text-blue-700 transition-colors">
+                        {inv.title}
+                      </span>
+                                        <span className="text-xs text-slate-500 font-normal line-clamp-1 max-w-[400px]">
+                        {inv.description}
+                      </span>
+                                    </div>
+                                </td>
+
+                                <td className="px-6 py-4 align-middle">
+                     <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-slate-100 text-slate-600 text-xs font-medium border border-slate-200">
+                        {inv.districts?.name || 'Ogólnomiejskie'}
+                     </span>
+                                </td>
+
+                                <td className="px-6 py-4 align-middle">
+                                    {inv.departments?.name ? (
+                                        <div className="text-sm text-slate-700 flex items-center gap-2">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                                            {inv.departments.name}
+                                        </div>
+                                    ) : (
+                                        <span className="text-xs text-slate-400 italic">Do przydzielenia</span>
+                                    )}
+                                </td>
+
+                                <td className="px-6 py-4 align-middle text-right">
+                    <span className={`font-mono text-sm ${inv.total_cost > 0 ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
+                      {inv.total_cost > 0 ? formatMoney(inv.total_cost) : '—'}
+                    </span>
+                                </td>
+
+                                <td className="px-6 py-4 align-middle text-center">
+                                    <div className="inline-flex justify-center">
+                                        <StatusBadge status={inv.status} />
+                                    </div>
+                                </td>
+
+                                <td className="px-6 py-4 align-middle text-right">
+                                    <Link
+                                        href={`/investments/${inv.id}`}
+                                        className="opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0 transition-all duration-200 inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+                                        title="Zobacz szczegóły"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                                    </Link>
                                 </td>
                             </tr>
-                        ) : (
-                            investments?.map((inv) => (
-                                <tr key={inv.id} className="hover:bg-slate-50 transition-colors group">
-                                    <td className="px-6 py-4 font-medium text-slate-900">
-                                        {inv.title}
-                                        <div className="text-xs text-slate-400 font-normal mt-1 truncate max-w-[300px]">
-                                            {inv.description}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-slate-600">
-                                        {inv.districts?.name || inv.districts?.[0]?.name}
-                                    </td>
-                                    <td className="px-6 py-4 text-slate-600">
-                                        {inv.departments?.name || inv.departments?.[0]?.name || '-'}
-                                    </td>
-                                    <td className="px-6 py-4 text-right font-mono text-slate-700">
-                                        {inv.total_cost > 0
-                                            ? new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(inv.total_cost)
-                                            : '-'}
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <StatusBadge status={inv.status} />
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <Link
-                                            href={`/investments/${inv.id}`}
-                                            className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 hover:bg-blue-600 hover:text-white transition-all"
-                                            title="Zobacz szczegóły"
-                                        >
-                                            ➝
-                                        </Link>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                        </tbody>
-                    </table>
-                </div>
+                        ))
+                    )}
+                    </tbody>
+                </table>
 
                 {/* FOOTER TABELI */}
-                <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 text-xs text-slate-500 flex justify-between">
-                    <span>Znaleziono: <strong>{investments?.length || 0}</strong> pozycji</span>
-                    {/* Tu można dodać paginację w przyszłości */}
+                <div className="bg-slate-50/50 px-6 py-3 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500">
+                    <span>Wyświetlono <strong>{investments?.length || 0}</strong> pozycji</span>
+                    <div className="flex gap-2 opacity-50 cursor-not-allowed">
+                        <span>&larr; Poprzednia</span>
+                        <span>Następna &rarr;</span>
+                    </div>
                 </div>
+            </div>
+
+            {/* --- MOBILE VIEW (CARDS) - Zachowane z poprzedniego kroku --- */}
+            <div className="md:hidden space-y-4">
+                {investments?.length === 0 ? (
+                    <div className="text-center py-10 text-slate-500 bg-white rounded-lg border border-slate-200">
+                        Brak wyników.
+                    </div>
+                ) : (
+                    investments?.map((inv) => (
+                        <Link
+                            key={inv.id}
+                            href={`/investments/${inv.id}`}
+                            className="block bg-white p-5 rounded-xl border border-slate-200 shadow-sm active:scale-[0.98] transition-transform"
+                        >
+                            <div className="flex justify-between items-start mb-3">
+                                <StatusBadge status={inv.status} />
+                                <span className="text-xs font-mono font-medium text-slate-600 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                  {inv.total_cost > 0 ? formatMoney(inv.total_cost) : 'Wycena'}
+                </span>
+                            </div>
+
+                            <h3 className="font-semibold text-slate-900 text-base mb-1">{inv.title}</h3>
+                            <p className="text-sm text-slate-500 mb-4 line-clamp-2">{inv.description}</p>
+
+                            <div className="flex items-center gap-3 text-xs text-slate-500 border-t border-slate-50 pt-3">
+                <span className="flex items-center gap-1.5">
+                   <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+                    {inv.districts?.name || 'Ogólnomiejskie'}
+                </span>
+                                {inv.departments?.name && (
+                                    <span className="flex items-center gap-1.5 truncate max-w-[150px]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                                        {inv.departments.name}
+                  </span>
+                                )}
+                            </div>
+                        </Link>
+                    ))
+                )}
             </div>
 
         </div>

@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import { logout } from '@/lib/actions/auth';
 import Link from 'next/link';
+import { MobileNav } from '@/components/dashboard/mobile-nav'; // <--- IMPORT
 
 export default async function DashboardLayout({
                                                   children,
@@ -15,7 +16,6 @@ export default async function DashboardLayout({
         redirect('/login');
     }
 
-    // Pobierz rolę użytkownika, żeby wiedzieć co wyświetlić w menu
     const { data: profile } = await supabase
         .from('profiles')
         .select('role, districts(name)')
@@ -29,17 +29,17 @@ export default async function DashboardLayout({
     };
 
     const homeHref = profile?.role ? (roleHomePaths[profile.role] || '/dashboard') : '/dashboard';
+    // @ts-ignore - Supabase types issue fix
+    const districtName = profile?.districts?.name;
 
     return (
-        <div className="min-h-screen bg-slate-50 flex">
-            {/* SIDEBAR */}
+        <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
+            {/* SIDEBAR (Desktop Only) */}
             <aside className="w-64 bg-white border-r border-slate-200 fixed h-full z-10 hidden md:block">
                 <div className="p-6 border-b border-slate-100">
-                    <h2 className="font-bold text-xl text-slate-900">Inwestycje Miejskie</h2>
+                    <h2 className="font-bold text-xl text-primary">Inwestycje Miejskie</h2>
                     <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider font-semibold">
-                        {/* @ts-ignore BŁĄD: profile?.districts?.name */}
-
-                        {profile?.districts?.name || 'Biuro/Urząd'}
+                        {districtName || 'Biuro/Urząd'}
                     </p>
                 </div>
 
@@ -57,7 +57,6 @@ export default async function DashboardLayout({
                         📂 Przegląd Inwestycji
                     </Link>
 
-                    {/* Przycisk tylko dla Rady - Create New */}
                     {profile?.role === 'rada' && (
                         <Link
                             href="/rada/nowa-inwestycja"
@@ -77,8 +76,12 @@ export default async function DashboardLayout({
                 </div>
             </aside>
 
+            {/* MOBILE NAV (Mobile Only) */}
+            <MobileNav role={profile?.role} districtName={districtName} />
+
             {/* MAIN CONTENT */}
-            <main className="flex-1 md:ml-64 p-8">
+            {/* Dodajemy pb-24 dla mobile, żeby nav nie zasłaniał treści */}
+            <main className="flex-1 md:ml-64 p-4 md:p-8 pb-24 md:pb-8 w-full">
                 <div className="max-w-6xl mx-auto">
                     {children}
                 </div>
