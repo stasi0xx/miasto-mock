@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import { createInvestmentSchema, CreateInvestmentState } from '@/lib/schemas';
 import { Resend } from 'resend';
 
+
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function createInvestment(
@@ -537,39 +538,27 @@ export async function completeInvestment(prevState: any, formData: FormData) {
     return { message: null };
 }
 
-export async function markAsRead(formData: FormData) {
-    const investmentId = formData.get('investmentId') as string;
-    const pathname = formData.get('pathname') as string;
-
+export async function markAsRead(investmentId: string, role: 'rada' | 'urzad') {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
 
-    // Sprawdzamy rolę, żeby wiedzieć którą flagę zgasić
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
+    // Logika decydująca którą kolumnę "zgasić"
+    const updateData = role === 'rada'
+        ? { is_unread_rd: false }
+        : { is_unread_urzad: false };
 
-    if (!profile) return;
+    const { error } = await supabase
+        .from('investments')
+        .update(updateData)
+        .eq('id', investmentId);
 
-    // Mapa: Rola -> Nazwa kolumny do zgaszenia
-    const columnMap: Record<string, string> = {
-        rada: 'is_unread_rada',
-        urzad: 'is_unread_urzad',
-        brd: 'is_unread_brd'
-    };
-
-    const columnToUpdate = columnMap[profile.role];
-
-    if (columnToUpdate) {
-        await supabase
-            .from('investments')
-            .update({ [columnToUpdate]: false }) // Gasimy flagę (false)
-            .eq('id', investmentId);
+    if (error) {
+        console.error('Błąd markAsRead:', error);
+        throw new Error('Nie udało się zaktualizować statusu.');
     }
 
-    revalidatePath(pathname);
+    // Odświeżenie widoków
+    revalidatePath('/rada');
+    revalidatePath('/urzad');
+    revalidatePath(`/investments/${investmentId}`);
 }
 

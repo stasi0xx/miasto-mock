@@ -1,54 +1,82 @@
-'use client'
+'use client';
 
-import { markAsRead } from '@/lib/actions/investments';
-import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { StatusBadge } from '@/components/ui/status-badge';
+import { useTransition } from 'react';
+import { markAsRead } from '@/lib/actions/investments';
 
-export function UnreadAlert({ investment }: { investment: any }) {
-    const pathname = usePathname();
+// Definiujemy typ propsów, żeby TS nie krzyczał
+type UnreadAlertProps = {
+    investment: {
+        id: string;
+        title: string;
+        districts?: { name: string } | { name: string }[] | null; // Obsługa dziwnych typów Supabase
+        is_unread_rd?: boolean;
+        is_unread_urzad?: boolean;
+    };
+};
 
-    // FIX: Bezpieczna data
-    const dateToDisplay = investment.updated_at || investment.created_at;
+export function UnreadAlert({ investment }: UnreadAlertProps) {
+    const [isPending, startTransition] = useTransition();
+
+    // Helper do bezpiecznego wyciągania nazwy dzielnicy
+    // @ts-ignore - ignorujemy błędy typowania Supabase dla prostoty
+    const districtName = Array.isArray(investment.districts)
+        ? investment.districts[0]?.name
+        : investment.districts?.name;
+
+    // Wykrywamy kontekst (czy to alert dla Rady czy Urzędu) na podstawie flagi
+    // Jeśli is_unread_rd jest true, to znaczy, że wyświetlamy to radnemu itd.
+    const roleToUpdate = investment.is_unread_rd ? 'rada' : 'urzad';
+
+    const handleMarkAsRead = () => {
+        startTransition(async () => {
+            await markAsRead(investment.id, roleToUpdate);
+        });
+    };
+
+    if (!investment) return null;
 
     return (
-        <div className="bg-white border-l-4 border-blue-500 rounded-r-xl shadow-sm p-4 mb-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in slide-in-from-top-2">
-
-            {/* LEWA STRONA: INFORMACJE */}
-            <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-          <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
-            {investment.updated_at ? 'Aktualizacja' : 'Nowe'}
-          </span>
-                    <span className="text-xs text-slate-400">
-            {new Date(dateToDisplay).toLocaleDateString('pl-PL')}
-          </span>
+        <div className={`
+            relative overflow-hidden
+            bg-white p-4 rounded-xl border-l-4 shadow-sm transition-all
+            flex flex-col md:flex-row md:items-center justify-between gap-4
+            ${isPending ? 'opacity-50 grayscale' : 'opacity-100'}
+            border-red-500 shadow-red-100
+        `}>
+            {/* Treść powiadomienia */}
+            <div className="flex-1 space-y-1">
+                <div className="flex items-center gap-2 text-xs font-bold text-red-600 uppercase tracking-wider">
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                    Nowa aktywność
                 </div>
 
-                <h4 className="font-bold text-slate-900 text-lg mb-1">
-                    <Link href={`/investments/${investment.id}`} className="hover:underline">
-                        {investment.title}
-                    </Link>
-                </h4>
-                <div className="flex items-center gap-3">
-                    <StatusBadge status={investment.status} />
-                    <span className="text-sm text-slate-500 truncate max-w-[300px]">{investment.description}</span>
-                </div>
+                <h3 className="font-bold text-slate-900 leading-snug">
+                    {investment.title}
+                </h3>
+
+                <p className="text-sm text-slate-500">
+                    Dzielnica: {districtName || 'Ogólnomiejskie'}
+                </p>
             </div>
 
-            {/* PRAWA STRONA: PRZYCISK */}
-            <form action={markAsRead} className="shrink-0">
-                <input type="hidden" name="investmentId" value={investment.id} />
-                <input type="hidden" name="pathname" value={pathname} />
+            {/* Akcje (Przyciski) - Na mobile będą pod spodem, na desktopie po prawej */}
+            <div className="flex items-center gap-3 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 md:border-none w-full md:w-auto">
+                <Link
+                    href={`/investments/${investment.id}`}
+                    className="flex-1 md:flex-none text-center px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors"
+                >
+                    Zobacz
+                </Link>
 
                 <button
-                    type="submit"
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-lg transition-colors text-sm border border-blue-200"
+                    onClick={handleMarkAsRead}
+                    disabled={isPending}
+                    className="flex-1 md:flex-none px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-medium rounded-lg transition-colors disabled:cursor-wait whitespace-nowrap"
                 >
-                    <span>✓</span>
-                    Oznacz jako przeczytane
+                    {isPending ? 'Oznaczanie...' : 'Oznacz jako przeczytane'}
                 </button>
-            </form>
+            </div>
         </div>
     );
 }
